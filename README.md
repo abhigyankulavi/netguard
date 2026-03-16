@@ -46,7 +46,7 @@ Macro Average Recall was given priority during the training process to make sure
 | **Macro Avg** | 0.94 | 1.00 | 0.97 | 630188 |
 | **Weighted Avg** | 1.00 | 1.00 | 1.00 | 630188 |
 
-![Confusion Matrix](./docs/confusion_matrix_netguard.jpg)
+![Confusion Matrix](./docs/Confusion_matrix_netguard.jpg)
 ![Top Features](./docs/Top_features_netguard.jpg)
 
 #### **C. Feature importance and behavioral analysis**
