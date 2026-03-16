@@ -84,6 +84,8 @@ A React-based command center designed for real-time data visualization makes up 
 * **C. Zero-day Anomaly Detection:** Integrating unsupervised learning layers to identify traffic patterns absent from current datasets is known as "zero-day anomaly detection."
 
 ---
+### **Note** 
+The backend needs some time to wake up as it spins down for inactivity due to free tier restrictions of render. So, the frontend dashboard will require some time to function properly.
 
 **Author:** Abhigyan Kulavi  
 **Department:** Information Technology  
