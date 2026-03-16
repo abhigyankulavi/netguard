@@ -6,7 +6,7 @@ export default function ScanHistory() {
   const [historyData, setHistoryData] = useState([]);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/history')
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/history`)
       .then(res => res.json())
       .then(data => setHistoryData(data))
       .catch(err => console.error("History fetch error:", err));
