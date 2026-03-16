@@ -83,5 +83,5 @@ A React-based command center designed for real-time data visualization makes up 
 ---
 
 **Author:** Abhigyan Kulavi  
-**Department:** Computer Science and Engineering  
+**Department:** Information Technology  
 **Email:** abhigyan.kulavi2004@gmail.com
