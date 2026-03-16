@@ -85,7 +85,8 @@ A React-based command center designed for real-time data visualization makes up 
 
 ---
 ### **Note** 
-The backend needs some time to wake up as it spins down for inactivity due to free tier restrictions of render. So, the frontend dashboard will require some time to function properly.
+* This project is currently a prototype and for production purposes, it will require some upgrades like better file parsing and live capture logics with lower latency. The project shows the usage of machine learning in detection of network intrusion and warns with mitigation advices to the user or analyst along with clear intrusion trajectories.
+* The backend needs some time to wake up as it spins down for inactivity due to free tier restrictions of render. So, the frontend dashboard will require some time to function properly.
 
 **Author:** Abhigyan Kulavi  
 **Department:** Information Technology  
