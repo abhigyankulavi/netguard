@@ -11,7 +11,7 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: bash start.sh     # <--- NEW: Runs both processes!
+    startCommand: bash start.sh 
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.8
