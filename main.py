@@ -1,7 +1,8 @@
-# main.py
 import os
 import uuid
 import pandas as pd
+import numpy as np
+import redis
 from io import StringIO
 from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +13,6 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 
 from tasks import celery_app, analyze_network_traffic
-from csv_validator import process_uploaded_csv
 from feature_config import EXPECTED_FEATURES
 import joblib
 
@@ -52,6 +52,17 @@ app.add_middleware(
 
 UPLOAD_DIR = "temp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@app.get("/api/health")
+async def health_check():
+    """Diagnostic endpoint to verify cloud Redis connectivity."""
+    redis_url = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+    try:
+        r = redis.from_url(redis_url, socket_connect_timeout=3)
+        r.ping()
+        return {"status": "healthy", "redis_connection": "successful", "broker_url": redis_url}
+    except Exception as e:
+        return {"status": "unhealthy", "redis_connection": "failed", "error": str(e)}
 
 @app.post("/api/upload")
 async def upload_capture_file(file: UploadFile = File(...)):
@@ -106,10 +117,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"error": f"Live stream missing {len(missing_features)} required features."})
                 continue
                 
-            ml_input_df = df[EXPECTED_FEATURES]
+            #Memory Formatting to prevent Live Stream Crashes
+            ml_input_df = df[EXPECTED_FEATURES].astype('float32')
             
             if 'model' in ml_components and 'encoder' in ml_components:
-                preds = ml_components['model'].predict(ml_input_df)
+                input_array = np.ascontiguousarray(ml_input_df.values, dtype=np.float32)
+                preds = ml_components['model'].predict(input_array)
                 text_preds = ml_components['encoder'].inverse_transform(preds)
 
                 threat_count = sum([1 for p in text_preds if p != "Normal Traffic"])
@@ -126,4 +139,3 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         if websocket in connected_clients:
             connected_clients.remove(websocket)
-
