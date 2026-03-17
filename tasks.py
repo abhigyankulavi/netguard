@@ -21,7 +21,6 @@ load_dotenv()
 redis_url = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 celery_app = Celery("threat_analyzer", broker=redis_url, backend=redis_url)
 
-# Load ML Models Globally for Celery Worker (but after fork to avoid socket corruption)
 try:
     model = joblib.load("models/netguard_xgb_model_v03.pkl")
     encoder = joblib.load("models/netguard_v03_label_encoder.pkl")
@@ -54,7 +53,6 @@ def analyze_network_traffic(self, file_path, file_type, original_filename):
             return llm.generate_content(prompt).text.strip()
         except Exception:
             return "AI analysis temporarily offline."
-
 
     try:
         self.update_state(state='PROCESSING', meta={'status': 'Extracting custom features...'})
