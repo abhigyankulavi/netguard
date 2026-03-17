@@ -129,3 +129,10 @@ The system is deployed using a CI/CD pipeline with Infrastructure as Code.
 * **Cold Start Latency (Render Free Tier):** To provide zero-cost cloud infrastructure, the FastAPI/Celery backend is running on Render’s free tier. If there has been 15 minutes of inactivity, the server spins down. When opening the application’s dashboard or initiating a scan after this period of inactivity, there is a 50 to 60-second delay as the cloud container spins up and machine learning models are loaded into memory.
 * **Prototype Scope & Production Roadmap:** This prototype has successfully shown how XGBoost can be applied as a real-world solution to intrusion detection, including AI-generated mitigation strategies and threat trajectory visualization. However, to bring this into an enterprise-level production-ready solution, there would need to be a move from Python-based packet parsing to hardware-accelerated parsing (e.g., DPDK) as well as kernel-level live packet capture (eBPF).
 * **Testing the Engine:** To test out the Machine Learning pipeline without having to create your own malicious network traffic, there are sample datasets available to use. To access this, go to the `test_csv_files/` directory in this repository, which has pre-formatted network flow logs available to use, including benign traffic as well as simulated attack types such as DDoS, Botnets, etc.
+
+## Author
+
+**Abhigyan Kulavi** 
+abhigyan.kulavi2004@gmail.com
+
+Computer Science Engineering Student
