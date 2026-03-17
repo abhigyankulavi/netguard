@@ -37,13 +37,16 @@ export default function AttackGraph({ graphData }) {
   if (!graphData || graphData.nodes.length === 0) return null;
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', display: 'flex' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', display: 'flex', touchAction: 'none', overflow: 'hidden' }}>
       <ForceGraph2D
         ref={fgRef}
         width={dimensions.width}
         height={dimensions.height}
         graphData={graphData}
         nodeRelSize={4}
+        
+        enableNodeDrag={true}
+        enableZoomPan={true}
         
         // Physics Engine Controls
         d3VelocityDecay={0.1} 
