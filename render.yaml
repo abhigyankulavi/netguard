@@ -2,7 +2,7 @@ services:
   # 1. The Redis Message Broker
   - type: redis
     name: netguard-redis
-    ipAllowList: [] # Empty list means it is safely locked inside Render's private network
+    ipAllowList: [] 
     plan: free
 
   # 2. The FastAPI Web Server
@@ -12,6 +12,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION    
+        value: 3.11.8
       - key: CELERY_BROKER_URL
         fromService:
           type: redis
@@ -29,9 +31,10 @@ services:
     name: netguard-celery
     env: python
     buildCommand: pip install -r requirements.txt
-    #concurrency=1 forces Celery to use 1 core, preventing cloud thread deadlocks
     startCommand: celery -A tasks worker --loglevel=info --concurrency=1
     envVars:
+      - key: PYTHON_VERSION     
+        value: 3.11.8
       - key: CELERY_BROKER_URL
         fromService:
           type: redis
