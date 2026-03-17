@@ -11,6 +11,9 @@ def process_uploaded_csv(file_path):
         df = pd.read_csv(file_path, low_memory=False)
         df.columns = df.columns.str.strip()
         
+        src_ips = df.get('Source IP', pd.Series(['Unknown'] * len(df)))
+        dst_ips = df.get('Destination IP', pd.Series(['Unknown'] * len(df)))
+        
         missing_features = [feat for feat in EXPECTED_FEATURES if feat not in df.columns]
         for feature in missing_features:
             df[feature] = np.nan
@@ -24,13 +27,17 @@ def process_uploaded_csv(file_path):
         formatted_df = formatted_df.replace([np.inf, -np.inf], np.nan)
         formatted_df = formatted_df.astype('float32')
 
+        formatted_df['Source IP'] = src_ips.values
+        formatted_df['Destination IP'] = dst_ips.values
+
         warning_msg = None
         if missing_features:
+            # Format the names directly where the warning is created
             display_names = ", ".join(missing_features[:4])
             if len(missing_features) > 4:
                 display_names += ", etc."
                 
-            warning_msg = f"Partial Extraction: Missing {len(missing_features)} features. Model is using sparsity-aware prediction. (Specifically missing: {display_names})"
+            warning_msg = f"Partial Extraction: Missing {len(missing_features)} features. XGBoost is using sparsity-aware prediction. (Specifically missing: {display_names})"
 
         return {
             "status": "success", 
