@@ -294,7 +294,7 @@ export default function Dashboard() {
             <Grid item xs={12} sm={6} md={3}>
               <Card sx={{ bgcolor: '#0b1426', border: '1px solid #1e293b' }}>
                 <CardContent>
-                  <Typography variant="subtitle2" sx={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Threats Blocked</Typography>
+                  <Typography variant="subtitle2" sx={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Threats Detected</Typography>
                   <Typography variant="h4" sx={{ mt: 1, color: isCritical ? '#fba918' : '#f8fafc', fontWeight: 600 }}>
                     {scanSummary.threats_detected.toLocaleString()}
                   </Typography>
