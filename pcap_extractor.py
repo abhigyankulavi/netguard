@@ -72,7 +72,6 @@ class FlowState:
         
         all_lengths = self.fwd_packet_lengths + self.bwd_packet_lengths
         
-        # Safely handle empty lists for numpy calculations
         safe_max = lambda x: np.max(x) if x else 0
         safe_min = lambda x: np.min(x) if x else 0
         safe_mean = lambda x: np.mean(x) if x else 0
@@ -150,7 +149,6 @@ def extract_from_pcap(pcap_path):
                     dst_port = packet.dport
                     protocol = packet[IP].proto
                     
-                    # Flow Hashing (Bi-directional)
                     fwd_hash = (src_ip, dst_ip, src_port, dst_port, protocol)
                     bwd_hash = (dst_ip, src_ip, dst_port, src_port, protocol)
                     
@@ -173,7 +171,6 @@ def extract_from_pcap(pcap_path):
 
         missing_features = [feat for feat in EXPECTED_FEATURES if feat not in df.columns]
         
-
         for feature in missing_features:
             df[feature] = np.nan
 
@@ -181,7 +178,11 @@ def extract_from_pcap(pcap_path):
         
         warning_msg = None
         if missing_features:
-            warning_msg = f"Partial Extraction: Missing {len(missing_features)} features. XGBoost is using sparsity-aware prediction."
+            display_names = ", ".join(missing_features[:4])
+            if len(missing_features) > 4:
+                display_names += ", etc."
+                
+            warning_msg = f"Partial Extraction: Missing {len(missing_features)} features. XGBoost is using sparsity-aware prediction. (Specifically missing: {display_names})"
 
         return {
             "status": "success",
