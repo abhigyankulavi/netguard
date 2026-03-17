@@ -13,8 +13,9 @@ NetGuard is an integrated Security Information and Event Management (SIEM) solut
 
 ## Visual Proofs
 
-* System Demonstration
-* Dashboard Preview
+# Dashboard Preview ![Dashboard](./Images/dashboard_netguard_01.png)
+![Dashboard](./Images/dashboard_netguard_02.png)
+# Threat History Preview  ![Threat History](./Images/history_netguard_01.png)
 
 ---
 
