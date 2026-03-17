@@ -1,39 +1,19 @@
 services:
-  # 1. The Redis Message Broker
+  # 1. The Redis Message Broker (Free Tier)
   - type: redis
     name: netguard-redis
     ipAllowList: [] 
     plan: free
 
-  # 2. The FastAPI Web Server
+  # 2. The Monolith API + Worker (Free Tier)
   - type: web
     name: netguard-api
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: bash start.sh     # <--- NEW: Runs both processes!
     envVars:
-      - key: PYTHON_VERSION    
-        value: 3.11.8
-      - key: CELERY_BROKER_URL
-        fromService:
-          type: redis
-          name: netguard-redis
-          property: connectionString
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-
-  # 3. The Celery Background Worker
-  - type: worker
-    name: netguard-celery
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: celery -A tasks worker --loglevel=info --concurrency=1
-    envVars:
-      - key: PYTHON_VERSION     
+      - key: PYTHON_VERSION
         value: 3.11.8
       - key: CELERY_BROKER_URL
         fromService:
