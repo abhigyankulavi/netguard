@@ -18,7 +18,6 @@ def process_uploaded_csv(file_path):
         formatted_df = df[EXPECTED_FEATURES].copy()
         
         # Note: Forcing dirty strings like "Infinity" or "144.2 " into actual numbers.
-        # errors='coerce' turns unparseable garbage text directly into np.nan
         for col in formatted_df.columns:
             formatted_df[col] = pd.to_numeric(formatted_df[col], errors='coerce')
             
@@ -27,7 +26,11 @@ def process_uploaded_csv(file_path):
 
         warning_msg = None
         if missing_features:
-            warning_msg = f"Partial Extraction: Missing {len(missing_features)} features. XGBoost is using sparsity-aware prediction."
+            display_names = ", ".join(missing_features[:4])
+            if len(missing_features) > 4:
+                display_names += ", etc."
+                
+            warning_msg = f"Partial Extraction: Missing {len(missing_features)} features. Model is using sparsity-aware prediction. (Specifically missing: {display_names})"
 
         return {
             "status": "success", 
