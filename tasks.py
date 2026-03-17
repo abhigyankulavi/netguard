@@ -1,9 +1,11 @@
 import os
+import time
 import pandas as pd
+import numpy as np
 import joblib
 from celery import Celery
-import google.generativeai as genai
-from supabase import create_client, Client
+from groq import Groq 
+from supabase import create_client
 from dotenv import load_dotenv
 
 from pcap_extractor import extract_from_pcap
@@ -21,6 +23,7 @@ load_dotenv()
 redis_url = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 celery_app = Celery("threat_analyzer", broker=redis_url, backend=redis_url)
 
+# Load ML Models Globally for Celery Worker
 try:
     model = joblib.load("models/netguard_xgb_model_v03.pkl")
     encoder = joblib.load("models/netguard_v03_label_encoder.pkl")
@@ -39,19 +42,24 @@ def analyze_network_traffic(self, file_path, file_type, original_filename):
     supabase_key = os.environ.get("SUPABASE_KEY")
     supabase = create_client(supabase_url, supabase_key) if supabase_url and supabase_key else None
 
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-    if gemini_key:
-        genai.configure(api_key=gemini_key)
-        llm = genai.GenerativeModel('gemini-2.5-flash')
-    else:
-        llm = None
+    groq_key = os.environ.get("GROQ_API_KEY")
+    groq_client = Groq(api_key=groq_key) if groq_key else None
 
     def get_ai_explanation(attack_type: str) -> str:
-        if not llm: return "AI disabled."
-        prompt = f"You are an AI SOC Analyst. Traffic classified as '{attack_type}'. In 2 sentences, explain the threat and suggest a firewall rule."
+        if not groq_client: return "AI disabled. No Groq API Key found."
+        
+        prompt = f"You are an AI SOC Analyst. Traffic classified as '{attack_type}'. In 2 sentences, explain the threat in a concise manner and suggest a specific firewall rule in a professional tone."
+        
         try:
-            return llm.generate_content(prompt).text.strip()
-        except Exception:
+            time.sleep(2)
+            chat_completion = groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama-3.3-70b-versatile",
+                temperature=0.3, 
+            )
+            return chat_completion.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"Groq Inference Error: {e}")
             return "AI analysis temporarily offline."
 
     try:
@@ -77,7 +85,6 @@ def analyze_network_traffic(self, file_path, file_type, original_filename):
         total_flows = len(df)
         
         if model and encoder:
-            import numpy as np
             batch_size = 10000 
             numeric_preds = []
             probs_list = []
@@ -100,6 +107,8 @@ def analyze_network_traffic(self, file_path, file_type, original_filename):
             for i, attack in enumerate(text_preds):
                 if attack != "Normal Traffic":
                     confidence = round(max(probs_list[i]) * 100, 2)
+                    
+                    # Ask the LLM once per attack type to save on API calls
                     if attack not in unique_attacks:
                         unique_attacks.add(attack)
                         explanations[attack] = get_ai_explanation(attack)
@@ -111,6 +120,7 @@ def analyze_network_traffic(self, file_path, file_type, original_filename):
                         "confidence": confidence,
                         "ai_insight": explanations[attack]
                     })
+                    
             if threats:
                 status = "Critical"
 
