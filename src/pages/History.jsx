@@ -13,7 +13,7 @@ export default function ScanHistory() {
   }, []);
 
   return (
-    <Box sx={{ animation: 'fadeIn 0.5s ease-in' }}>
+    <Box sx={{ animxation: 'fadeIn 0.5s ease-in' }}>
       <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 4 }}>
         <HistoryIcon color="primary" fontSize="large" /> Threat Archives
       </Typography>
