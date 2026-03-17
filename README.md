@@ -1,7 +1,7 @@
 # NetGuard: AI-Enhanced Network Intrusion Detection
 
-**Live Application:** [netguard-seven.vercel.app](https://netguard-seven.vercel.app)  
-**API Documentation:** [https://netguard-backend-cnz0.onrender.com/docs](https://netguard-backend-cnz0.onrender.com/docs)
+**Live Application:** [netguard-swart.vercel.app](https://netguard-swart.vercel.app/)  
+**API Documentation:** [https://netguard-api.onrender.com/docs](https://netguard-api.onrender.com/docs)
 
 ---
 
