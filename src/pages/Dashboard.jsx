@@ -52,7 +52,7 @@ export default function Dashboard() {
         setScanSummary(prev => ({
           total_flows_analyzed: (prev?.total_flows_analyzed || 0) + data.total_flows,
           threats_detected: (prev?.threats_detected || 0) + data.threats_detected,
-          warning: data.warning || prev?.warning // <-- CAPTURES LIVE WARNINGS
+          warning: data.warning || prev?.warning 
         }));
         
         if (data.threat_details && data.threat_details.length > 0) {
@@ -151,9 +151,21 @@ export default function Dashboard() {
     threatDetails.forEach((threat) => {
       const srcId = threat.source_ip === 'Unknown' ? `Unknown_Src_${Math.random()}` : threat.source_ip;
       const tgtId = threat.target_ip === 'Unknown' ? `Unknown_Tgt_${Math.random()}` : threat.target_ip;
+      
+      const srcLabel = threat.source_ip === 'Unknown' ? 'Unknown IP' : threat.source_ip;
+      const tgtLabel = threat.target_ip === 'Unknown' ? 'Target System' : threat.target_ip;
 
-      if (!nodes.has(srcId)) nodes.set(srcId, { id: srcId, group: 'Attacker', color: '#ff1744' });
-      if (!nodes.has(tgtId)) nodes.set(tgtId, { id: tgtId, group: 'Target', color: '#4fc3f7' });
+      if (!nodes.has(srcId)) {
+          nodes.set(srcId, { id: srcId, label: srcLabel, group: 'Attacker', color: '#ff1744', val: 1 });
+      } else {
+          nodes.get(srcId).val += 1;
+      }
+
+      if (!nodes.has(tgtId)) {
+          nodes.set(tgtId, { id: tgtId, label: tgtLabel, group: 'Target', color: '#4fc3f7', val: 1 });
+      } else {
+          nodes.get(tgtId).val += 1;
+      }
       
       links.push({ source: srcId, target: tgtId, name: threat.attack_type, color: 'rgba(255, 23, 68, 0.4)' });
       typeCount[threat.attack_type] = (typeCount[threat.attack_type] || 0) + 1;
@@ -307,12 +319,13 @@ export default function Dashboard() {
               <Grid item xs={12} lg={8}>
                 <Card sx={{ height: 450, bgcolor: '#0b1426', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ p: 2, borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                     <Typography variant="subtitle1" sx={{ color: '#e2e8f0', fontWeight: 600 }}>Live Vector Topology</Typography>
-                     {threatDetails[0].source_ip === 'Unknown' && (
-                         <Chip label="IP Data Anonymized in CSV" size="small" sx={{ bgcolor: '#334155', color: '#cbd5e1', fontSize: '0.7rem' }} />
-                     )}
+                    <Typography variant="subtitle1" sx={{ color: '#e2e8f0', fontWeight: 600 }}>Live Vector Topology</Typography>
+                    {threatDetails[0].source_ip === 'Unknown' && (
+                      <Chip label="IP Data Anonymized in CSV" size="small" sx={{ bgcolor: '#334155', color: '#cbd5e1', fontSize: '0.7rem' }} />
+                    )}
                   </Box>
-                  <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+        
+                  <Box sx={{ flexGrow: 1, overflow: 'hidden', width: '100%', height: '100%', position: 'relative' }}>
                     <AttackGraph graphData={graphData} />
                   </Box>
                 </Card>
