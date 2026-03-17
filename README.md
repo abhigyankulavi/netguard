@@ -125,6 +125,25 @@ The system is deployed using a CI/CD pipeline with Infrastructure as Code.
 
 ---
 
+### 6. Possible future updates
+
+* **Automated Incident Response (Active Mitigation):**
+Currently, the Groq (Llama 3.3) engine automatically recommends the best firewall rules. The next step in the process would be the integration of SSH/webhooks with the API, allowing the execution of iptables, ufw, or WAF blocking rules the millisecond the volumetric attack is verified.
+
+* **Kernel-Level Live Capture (eBPF):**
+To achieve line-rate inference on gigabit-speed networks, the ingestion engine would need to be modified from user-space Python extraction using the Scapy library to use eBPF (Extended Berkeley Packet Filter) to inspect and drop malicious traffic inside the Linux kernel before the traffic is even processed as an application-layer protocol.
+
+* **Multi-Node Distributed Sensors:**
+Expanding this architecture to include a concept of 'Sensor Agents' that can operate on multiple nodes of a given network, such as cloud platforms or IoT networks. This will allow the centralized NetGuard engine to collect data, effectively allowing this current dashboard to become a centralized command center for multiple networks.
+
+* **Instant Alerting & Webhook Integrations:**
+Incorporating a new Celery task to integrate 'Critical' alert notifications into other alert tools. This will allow real-time threat intelligence feeds to be sent to a Slack channel or an analyst's email account through SendGrid/Twilio.
+
+* **Role-Based Access Control (RBAC) & Reporting:**
+Incorporating a new JWT authentication system to allow multiple SOC analysts to log in and access historical threat archives in the Supabase vault. This will also allow PDF reporting to satisfy compliance needs.
+
+---
+
 ## Note
 
 * **Cold Start Latency (Render Free Tier):** To provide zero-cost cloud infrastructure, the FastAPI/Celery backend is running on Render’s free tier. If there has been 15 minutes of inactivity, the server spins down. When opening the application’s dashboard or initiating a scan after this period of inactivity, there is a 50 to 60-second delay as the cloud container spins up and machine learning models are loaded into memory.
