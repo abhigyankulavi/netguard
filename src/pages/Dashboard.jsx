@@ -2,16 +2,18 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Box, Grid, Card, CardContent, Typography, Button, CircularProgress, 
   ToggleButton, ToggleButtonGroup, Chip, Table, TableBody, TableCell, 
-  TableHead, TableRow, TableContainer 
+  TableHead, TableRow, TableContainer, Divider
 } from '@mui/material';
 import { 
-  CloudUpload, Security, Warning, Sensors, StopCircle, RadioButtonChecked 
+  CloudUpload, Security, Warning, Sensors, StopCircle, RadioButtonChecked,
+  GppGood, ErrorOutline
 } from '@mui/icons-material';
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import toast from 'react-hot-toast';
 
 import AttackGraph from '../components/topology/AttackGraph';
 import ThreatPieChart from '../components/charts/ThreatPieChart';
 import TopAttackers from '../components/charts/TopAttackers';
+
 export default function Dashboard() {
   const [analysisMode, setAnalysisMode] = useState('upload'); 
   const [file, setFile] = useState(null);
@@ -23,25 +25,33 @@ export default function Dashboard() {
   const [scanSummary, setScanSummary] = useState(null);
   const [threatDetails, setThreatDetails] = useState([]);
 
-  //Live Sensor WebSocket
   const toggleLiveSensor = () => {
     if (isLiveActive) {
       if (wsRef.current) wsRef.current.close();
       setIsLiveActive(false);
+      toast('Live Sensor Disconnected', { icon: '🛑' });
     } else {
-      setScanSummary({ total_flows_analyzed: 0, threats_detected: 0, status: 'Secure' });
+      setScanSummary({ total_flows_analyzed: 0, threats_detected: 0 });
       setThreatDetails([]);
       
       const WS_URL = import.meta.env.VITE_WS_BASE_URL;
       wsRef.current = new WebSocket(`${WS_URL}/ws/live`);
-      wsRef.current.onopen = () => setIsLiveActive(true);
+      
+      wsRef.current.onopen = () => {
+        setIsLiveActive(true);
+        toast.success('Live Sensor Activated. Monitoring traffic...');
+      };
       
       wsRef.current.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        if (data.error) { toast.error(`Stream Error: ${data.error}`); return; }
+        if (data.warning) {
+            toast(data.warning, { icon: '⚠️', style: { background: '#fff3cd', color: '#856404' }, duration: 4000 });
+        }
+
         setScanSummary(prev => ({
           total_flows_analyzed: (prev?.total_flows_analyzed || 0) + data.total_flows,
           threats_detected: (prev?.threats_detected || 0) + data.threats_detected,
-          status: data.status === 'Critical' ? 'Critical' : prev?.status || 'Secure'
         }));
         
         if (data.threat_details && data.threat_details.length > 0) {
@@ -54,7 +64,7 @@ export default function Dashboard() {
 
       wsRef.current.onerror = () => {
         setIsLiveActive(false);
-        alert("Failed to connect to Live Sensor. Is the backend running?");
+        toast.error("Failed to connect to Live Sensor. Is the backend running?");
       };
     }
   };
@@ -63,39 +73,73 @@ export default function Dashboard() {
     return () => { if (wsRef.current) wsRef.current.close(); };
   }, []);
 
-  //File Upload
   const handleScan = async () => {
     if (!file) return;
     setIsScanning(true);
     setThreatDetails([]);
     setScanSummary(null);
 
+    const toastId = toast.loading('Uploading capture to NetGuard Engine...');
     const formData = new FormData();
     formData.append('file', file);
 
     try {
       const API_URL = import.meta.env.VITE_API_BASE_URL;
-      const response = await fetch(`${API_URL}/api/analyze`, { method: 'POST', body: formData });
+      const response = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
       if (!response.ok) throw new Error(await response.text());
       
       const data = await response.json();
- 
-      setScanSummary({
-        total_flows_analyzed: data.total_flows,
-        threats_detected: data.threats_detected,
-        status: data.status
-      });
-      setThreatDetails(data.threat_details);
-      
+      toast.loading('Analyzing traffic flows...', { id: toastId });
+      pollTaskStatus(data.task_id, toastId);
     } catch (err) {
-      alert("Scan failed: " + err.message);
-    } finally {
+      toast.error(`Scan failed: ${err.message}`, { id: toastId });
       setIsScanning(false);
     }
   };
 
+  const pollTaskStatus = async (taskId, toastId) => {
+    try {
+        const API_URL = import.meta.env.VITE_API_BASE_URL;
+        const statusRes = await fetch(`${API_URL}/api/status/${taskId}`);
+        const statusData = await statusRes.json();
+
+        if (statusData.status === 'SUCCESS') {
+            const mlResults = statusData.result;
+            if (mlResults.error) {
+                toast.error(`Analysis Failed: ${mlResults.error}`, { id: toastId });
+                setIsScanning(false);
+                return;
+            }
+
+            setScanSummary({
+                total_flows_analyzed: mlResults.total_flows,
+                threats_detected: mlResults.threats_detected,
+            });
+            setThreatDetails(mlResults.threat_details || []);
+            setIsScanning(false);
+
+            if (mlResults.warning) {
+                toast.error(mlResults.warning, { id: toastId, icon: '⚠️', style: { background: '#fff3cd', color: '#856404' }, duration: 6000 });
+            } else if (mlResults.threats_detected > 0) {
+                toast.error(`Analysis Complete: ${mlResults.threats_detected} Threats Detected!`, { id: toastId });
+            } else {
+                toast.success('Analysis Complete: Network Secure.', { id: toastId });
+            }
+        } else if (statusData.status === 'FAILURE') {
+            toast.error(`Engine Failure: ${statusData.error}`, { id: toastId });
+            setIsScanning(false);
+        } else {
+            if (statusData.message) toast.loading(statusData.message, { id: toastId });
+            setTimeout(() => pollTaskStatus(taskId, toastId), 2000);
+        }
+    } catch (error) {
+        toast.error("Lost connection to the SIEM engine.", { id: toastId });
+        setIsScanning(false);
+    }
+  };
+
   const { graphData, attackDistribution, topAttackers } = useMemo(() => {
-    if (threatDetails.length === 0) return { graphData: { nodes: [], links: [] }, attackDistribution: [], topAttackers: [] };
+    if (!threatDetails || threatDetails.length === 0) return { graphData: { nodes: [], links: [] }, attackDistribution: [], topAttackers: [] };
 
     const nodes = new Map();
     const links = [];
@@ -103,12 +147,18 @@ export default function Dashboard() {
     const ipCount = {};
 
     threatDetails.forEach((threat) => {
-      if (!nodes.has(threat.source_ip)) nodes.set(threat.source_ip, { id: threat.source_ip, group: 'Attacker', color: '#ff1744' });
-      if (!nodes.has(threat.target_ip)) nodes.set(threat.target_ip, { id: threat.target_ip, group: 'Target', color: '#4fc3f7' });
+      const srcId = threat.source_ip === 'Unknown' ? `Unknown_Src_${Math.random()}` : threat.source_ip;
+      const tgtId = threat.target_ip === 'Unknown' ? `Unknown_Tgt_${Math.random()}` : threat.target_ip;
+
+      if (!nodes.has(srcId)) nodes.set(srcId, { id: srcId, group: 'Attacker', color: '#ff1744' });
+      if (!nodes.has(tgtId)) nodes.set(tgtId, { id: tgtId, group: 'Target', color: '#4fc3f7' });
       
-      links.push({ source: threat.source_ip, target: threat.target_ip, name: threat.attack_type, color: 'rgba(255, 23, 68, 0.6)' });
+      links.push({ source: srcId, target: tgtId, name: threat.attack_type, color: 'rgba(255, 23, 68, 0.4)' });
       typeCount[threat.attack_type] = (typeCount[threat.attack_type] || 0) + 1;
-      ipCount[threat.source_ip] = (ipCount[threat.source_ip] || 0) + 1;
+      
+      if (threat.source_ip !== 'Unknown') {
+          ipCount[threat.source_ip] = (ipCount[threat.source_ip] || 0) + 1;
+      }
     });
 
     return { 
@@ -118,135 +168,179 @@ export default function Dashboard() {
     };
   }, [threatDetails]);
 
+  const isCritical = scanSummary?.threats_detected > 0;
+
   return (
-    <Box sx={{ animation: 'fadeIn 0.5s ease-in' }}>
-      {/* Control Panel */}
-      <Card sx={{ mb: 4, p: 2, bgcolor: 'background.paper' }}>
-        <Grid container spacing={2} alignItems="center" justifyContent="space-between">
-          <Grid item xs={12} md={6}>
-            <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Sensors color="primary" /> File Upload & Live Analysis
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Select data source.
-            </Typography>
-          </Grid>
-          <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 3 }}>
+    <Box sx={{ animation: 'fadeIn 0.5s ease-in', maxWidth: '1600px', margin: '0 auto' }}>
+      
+      {/*HEADER CONTROLS*/}
+      <Card sx={{ mb: 4, bgcolor: '#0b1426', border: '1px solid #1e293b', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Sensors sx={{ color: '#4fc3f7', fontSize: 32 }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, color: '#e2e8f0', letterSpacing: '0.5px' }}>
+                NetGuard Threat Engine
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+                Ingest telemetry via PCAP or CSV logs.
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <ToggleButtonGroup
-              color="primary" value={analysisMode} exclusive size="small"
+              value={analysisMode} exclusive size="small"
               onChange={(e, newMode) => { if(newMode) setAnalysisMode(newMode); }}
+              sx={{ bgcolor: '#0f172a', border: '1px solid #334155' }}
             >
-              <ToggleButton value="upload" sx={{ px: 3 }}><CloudUpload sx={{ mr: 1, fontSize: 18 }}/> File Upload</ToggleButton>
-              <ToggleButton value="live" sx={{ px: 3 }}><RadioButtonChecked sx={{ mr: 1, fontSize: 18 }}/> Live Network</ToggleButton>
+              <ToggleButton value="upload" sx={{ color: '#cbd5e1', '&.Mui-selected': { bgcolor: '#1e293b', color: '#4fc3f7' } }}>
+                <CloudUpload sx={{ mr: 1, fontSize: 18 }}/> File Upload
+              </ToggleButton>
+              <ToggleButton value="live" sx={{ color: '#cbd5e1', '&.Mui-selected': { bgcolor: '#1e293b', color: '#4fc3f7' } }}>
+                <RadioButtonChecked sx={{ mr: 1, fontSize: 18 }}/> Live Feed
+              </ToggleButton>
             </ToggleButtonGroup>
 
             {analysisMode === 'upload' ? (
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <Button variant="outlined" component="label" sx={{ borderColor: '#1A2C42' }}>
-                  {file ? file.name : "Select PCAP/CSV"}
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Button variant="outlined" component="label" sx={{ color: '#cbd5e1', borderColor: '#334155', textTransform: 'none' }}>
+                  {file ? file.name : "Select File"}
                   <input type="file" hidden accept=".csv,.pcap,.pcapng" onChange={(e) => setFile(e.target.files[0])} />
                 </Button>
                 <Button 
-                  variant="contained" color="primary" onClick={handleScan} disabled={isScanning || !file}
+                  variant="contained" 
+                  onClick={handleScan} 
+                  disabled={isScanning || !file}
+                  sx={{ bgcolor: '#0284c7', '&:hover': { bgcolor: '#0369a1' }, textTransform: 'none', px: 3 }}
                   startIcon={isScanning ? <CircularProgress size={20} color="inherit"/> : <Security />}
                 >
-                  {isScanning ? 'Processing...' : 'Analyze'}
+                  {isScanning ? 'Scanning...' : 'Analyze Data'}
                 </Button>
               </Box>
             ) : (
               <Button 
-                variant="contained" color={isLiveActive ? "error" : "success"} onClick={toggleLiveSensor}
+                variant="contained" 
+                onClick={toggleLiveSensor}
+                sx={{ 
+                    bgcolor: isLiveActive ? '#ef4444' : '#10b981', 
+                    '&:hover': { bgcolor: isLiveActive ? '#dc2626' : '#059669' },
+                    textTransform: 'none', px: 3,
+                    boxShadow: isLiveActive ? '0 0 15px rgba(239, 68, 68, 0.4)' : 'none'
+                }}
                 startIcon={isLiveActive ? <StopCircle /> : <Sensors />}
-                sx={{ boxShadow: isLiveActive ? '0 0 15px rgba(255, 23, 68, 0.4)' : '0 0 15px rgba(0, 230, 118, 0.2)' }}
               >
                 {isLiveActive ? 'Stop Capture' : 'Start Sensor'}
               </Button>
             )}
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       </Card>
 
-      {/* KPI and Visualizations */}
+      {/*DASHBOARD */}
       {scanSummary && (
-        <Grid container spacing={3}>
-          {/* KPI Row */}
-          <Grid item xs={12} md={3}>
-            <Card sx={{ borderTop: scanSummary.status === 'Secure' ? '4px solid #00e676' : '4px solid #ff1744' }}>
-              <CardContent>
-                <Typography color="text.secondary" variant="subtitle2">Network Integrity</Typography>
-                <Typography variant="h4" sx={{ mt: 1, color: scanSummary.status === 'Secure' ? 'success.main' : 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {scanSummary.status === 'Secure' ? <Security /> : <Warning />} {scanSummary.status}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card><CardContent>
-              <Typography color="text.secondary" variant="subtitle2">Total Flows Analyzed</Typography>
-              <Typography variant="h4" sx={{ mt: 1 }}>{scanSummary.total_flows_analyzed.toLocaleString()}</Typography>
-            </CardContent></Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card><CardContent>
-              <Typography color="text.secondary" variant="subtitle2">Malicious Anomalies</Typography>
-              <Typography variant="h4" sx={{ mt: 1, color: 'warning.main' }}>{scanSummary.threats_detected.toLocaleString()}</Typography>
-            </CardContent></Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card><CardContent>
-              <Typography color="text.secondary" variant="subtitle2">Primary Threat Actor</Typography>
-              <Typography variant="h5" sx={{ mt: 1, fontFamily: 'monospace', color: 'error.main' }}>
-                {topAttackers.length > 0 ? topAttackers[0].ip : "None"}
-              </Typography>
-            </CardContent></Card>
+        <Box>
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: '#0b1426', border: '1px solid #1e293b', borderTop: `4px solid ${isCritical ? '#ef4444' : '#10b981'}` }}>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Network Posture</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, gap: 1 }}>
+                    {isCritical ? <ErrorOutline sx={{ color: '#ef4444', fontSize: 28 }} /> : <GppGood sx={{ color: '#10b981', fontSize: 28 }} />}
+                    <Typography variant="h5" sx={{ color: isCritical ? '#ef4444' : '#10b981', fontWeight: 700, textTransform: 'uppercase' }}>
+                      {isCritical ? 'Critical' : 'Secure'}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: '#0b1426', border: '1px solid #1e293b' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Flows Analyzed</Typography>
+                  <Typography variant="h4" sx={{ mt: 1, color: '#f8fafc', fontWeight: 600 }}>
+                    {scanSummary.total_flows_analyzed.toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: '#0b1426', border: '1px solid #1e293b' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Threats Blocked</Typography>
+                  <Typography variant="h4" sx={{ mt: 1, color: isCritical ? '#fba918' : '#f8fafc', fontWeight: 600 }}>
+                    {scanSummary.threats_detected.toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: '#0b1426', border: '1px solid #1e293b' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Primary Vector</Typography>
+                  <Typography variant="h6" sx={{ mt: 1, color: '#f8fafc', fontFamily: 'monospace' }}>
+                    {attackDistribution.length > 0 ? attackDistribution.sort((a,b) => b.value - a.value)[0].name : "None"}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
 
-          {/* Visualization Row */}
-          {threatDetails.length > 0 && (
-            <>
-              {/* Force Graph */}
+          {/* VISUALIZATION ROW */}
+          {threatDetails && threatDetails.length > 0 && (
+            <Grid container spacing={3}>
               <Grid item xs={12} lg={8}>
-                <Card sx={{ height: 450 }}>
-                  <AttackGraph graphData={graphData} />
+                <Card sx={{ height: 450, bgcolor: '#0b1426', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ p: 2, borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <Typography variant="subtitle1" sx={{ color: '#e2e8f0', fontWeight: 600 }}>Live Vector Topology</Typography>
+                     {threatDetails[0].source_ip === 'Unknown' && (
+                         <Chip label="IP Data Anonymized in CSV" size="small" sx={{ bgcolor: '#334155', color: '#cbd5e1', fontSize: '0.7rem' }} />
+                     )}
+                  </Box>
+                  <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                    <AttackGraph graphData={graphData} />
+                  </Box>
                 </Card>
               </Grid>
 
               {/* Pie Chart*/}
               <Grid item xs={12} lg={4}>
-                <Card sx={{ height: 450 }}>
-                  <ThreatPieChart distributionData={attackDistribution} />
+                <Card sx={{ height: 450, bgcolor: '#0b1426', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ p: 2, borderBottom: '1px solid #1e293b' }}>
+                     <Typography variant="subtitle1" sx={{ color: '#e2e8f0', fontWeight: 600 }}>Signature Distribution</Typography>
+                  </Box>
+                  <Box sx={{ flexGrow: 1, p: 2 }}>
+                    <ThreatPieChart distributionData={attackDistribution} />
+                  </Box>
                 </Card>
               </Grid>
 
-              {/* Top Attackers Bar Chart */}
-              <Grid item xs={12} lg={4}>
-                <Card sx={{ height: 450 }}>
-                  <TopAttackers attackersData={topAttackers} />
-                </Card>
-              </Grid>
-              {/* Threat Log Table */}
+              {/*Threat Log Table*/}
               <Grid item xs={12} lg={8}>
-                <Card sx={{ height: 400, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ p: 2, borderBottom: '1px solid #1A2C42', bgcolor: '#0b162c' }}>
-                    <Typography variant="subtitle1" fontWeight="bold">Threat Log</Typography>
+                <Card sx={{ height: 400, bgcolor: '#0b1426', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ p: 2, borderBottom: '1px solid #1e293b' }}>
+                    <Typography variant="subtitle1" sx={{ color: '#e2e8f0', fontWeight: 600 }}>Active Threat Log</Typography>
                   </Box>
-                  <TableContainer sx={{ flexGrow: 1 }}>
+                  <TableContainer sx={{ flexGrow: 1, '&::-webkit-scrollbar': { width: '8px' }, '&::-webkit-scrollbar-thumb': { bgcolor: '#334155', borderRadius: '4px' } }}>
                     <Table stickyHeader size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell>Signature</TableCell>
-                          <TableCell>Source IP</TableCell>
-                          <TableCell>Target IP</TableCell>
-                          <TableCell>Response Plan</TableCell>
+                          <TableCell sx={{ bgcolor: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #1e293b' }}>Signature</TableCell>
+                          <TableCell sx={{ bgcolor: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #1e293b' }}>Source IP</TableCell>
+                          <TableCell sx={{ bgcolor: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #1e293b' }}>Target IP</TableCell>
+                          <TableCell sx={{ bgcolor: '#0f172a', color: '#94a3b8', borderBottom: '1px solid #1e293b' }}>AI Response Plan</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
                         {threatDetails.map((threat, index) => (
-                          <TableRow key={index} hover>
-                            <TableCell><Chip label={threat.attack_type} sx={{ bgcolor: 'rgba(255, 23, 68, 0.1)', color: '#ff1744', fontWeight: 'bold' }} size="small" /></TableCell>
-                            <TableCell sx={{ fontFamily: 'monospace', color: '#8e9fac' }}>{threat.source_ip}</TableCell>
-                            <TableCell sx={{ fontFamily: 'monospace', color: '#8e9fac' }}>{threat.target_ip}</TableCell>
-                            <TableCell sx={{ color: '#cfd8dc', fontSize: '0.8rem' }}>{threat.ai_insight}</TableCell>
+                          <TableRow key={index} hover sx={{ '&:last-child td, &:last-child th': { border: 0 }, '&:hover': { bgcolor: '#1e293b' } }}>
+                            <TableCell sx={{ borderBottom: '1px solid #1e293b' }}>
+                                <Chip label={threat.attack_type} sx={{ bgcolor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontWeight: 600, borderRadius: '4px' }} size="small" />
+                            </TableCell>
+                            <TableCell sx={{ borderBottom: '1px solid #1e293b', fontFamily: 'monospace', color: '#cbd5e1' }}>{threat.source_ip}</TableCell>
+                            <TableCell sx={{ borderBottom: '1px solid #1e293b', fontFamily: 'monospace', color: '#cbd5e1' }}>{threat.target_ip}</TableCell>
+                            <TableCell sx={{ borderBottom: '1px solid #1e293b', color: '#94a3b8', fontSize: '0.8rem', lineHeight: 1.5 }}>{threat.ai_insight}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -254,9 +348,30 @@ export default function Dashboard() {
                   </TableContainer>
                 </Card>
               </Grid>
-            </>
+
+              {/*Top Attackers*/}
+              <Grid item xs={12} lg={4}>
+                <Card sx={{ height: 400, bgcolor: '#0b1426', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ p: 2, borderBottom: '1px solid #1e293b' }}>
+                     <Typography variant="subtitle1" sx={{ color: '#e2e8f0', fontWeight: 600 }}>Top Hostile Sources</Typography>
+                  </Box>
+                  <Box sx={{ flexGrow: 1, p: 2 }}>
+                    {topAttackers.length > 0 ? (
+                        <TopAttackers attackersData={topAttackers} />
+                    ) : (
+                        <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Typography sx={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', px: 2 }}>
+                                Insufficient IP data.<br/>Upload a PCAP to track active threat actors.
+                            </Typography>
+                        </Box>
+                    )}
+                  </Box>
+                </Card>
+              </Grid>
+
+            </Grid>
           )}
-        </Grid>
+        </Box>
       )}
     </Box>
   );
