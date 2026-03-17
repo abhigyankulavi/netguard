@@ -29,22 +29,52 @@ A very widely used dataset **"CICIDS2017"** was used for the machine learning. O
 Macro Average Recall was given priority during the training process to make sure the model remained resilient against real-world imbalances, where malicious traffic is frequently dwarfed by legitimate flows. This made it possible to detect low-frequency, covert threats like botnets with the same accuracy as large-scale, volumetric attacks like DDoS.
 
 #### **B. Performance Metrics**
-* **Training set size:** (1890563, 52)
-* **Testing set size:** (630188, 52)
+* **Training set size:** (2016600, 43)
+* **Testing set size:** (504151, 43)
 
-| Class | Precision | Recall | F1-Score | Support |
-| :--- | :--- | :--- | :--- | :--- |
-| **Bots** | 0.65 | 0.99 | 0.79 | 487 |
-| **Brute Force** | 1.00 | 1.00 | 1.00 | 2287 |
-| **DDoS** | 1.00 | 1.00 | 1.00 | 32004 |
-| **DoS** | 1.00 | 1.00 | 1.00 | 48436 |
-| **Normal Traffic** | 1.00 | 1.00 | 1.00 | 523764 |
-| **Port Scanning** | 0.99 | 1.00 | 0.99 | 22674 |
-| **Web Attacks** | 0.97 | 1.00 | 0.99 | 536 |
-| | | | | |
-| **Accuracy** | | | **1.00** | 630188 |
-| **Macro Avg** | 0.94 | 1.00 | 0.97 | 630188 |
-| **Weighted Avg** | 1.00 | 1.00 | 1.00 | 630188 |
+# Classification Report
+
+## Overall Metrics
+- **Accuracy:** 1.00  
+- **Total Samples:** 504,151  
+
+## Class-wise Performance
+
+| Class            | Precision | Recall | F1-Score | Support |
+|------------------|----------|--------|----------|---------|
+| Bots             | 0.91     | 0.74   | 0.82     | 389     |
+| Brute Force      | 1.00     | 1.00   | 1.00     | 1,830   |
+| DDoS             | 1.00     | 1.00   | 1.00     | 25,603  |
+| DoS              | 1.00     | 1.00   | 1.00     | 38,749  |
+| Normal Traffic   | 1.00     | 1.00   | 1.00     | 419,012 |
+| Port Scanning    | 0.99     | 1.00   | 0.99     | 18,139  |
+| Web Attacks      | 1.00     | 0.99   | 0.99     | 429     |
+
+## Averages
+
+| Metric        | Precision | Recall | F1-Score | Support |
+|---------------|----------|--------|----------|---------|
+| Macro Avg     | 0.98     | 0.96   | 0.97     | 504,151 |
+| Weighted Avg  | 1.00     | 1.00   | 1.00     | 504,151 |
+
+## Key Observations
+
+- **Excellent overall accuracy (100%)**, indicating strong model performance.
+- **Bots class shows comparatively lower recall (0.74)**:
+  - Suggests false negatives (missed bot detections).
+- **Highly imbalanced dataset**:
+  - "Normal Traffic" dominates with ~83% of total samples.
+- **Attack classes (DDoS, DoS, Brute Force)** are perfectly classified:
+  - Possible overfitting or highly separable features.
+- **Macro average (0.97 F1-score)** reveals slight weakness masked by weighted average.
+
+## Recommendations
+
+- Improve **Bots class recall**:
+  - Use class weighting or oversampling (e.g., SMOTE).
+- Validate on **unseen real-world traffic** to ensure generalization.
+- Check for **data leakage** due to near-perfect scores.
+- Consider **confusion matrix analysis** for deeper insight.
 
 ![Confusion Matrix](./docs/Confusion_matrix_netguard.jpg)
 ![Top Features](./docs/Top_features_netguard.jpg)
