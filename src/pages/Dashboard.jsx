@@ -2,10 +2,10 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Box, Grid, Card, CardContent, Typography, Button, CircularProgress, 
   ToggleButton, ToggleButtonGroup, Chip, Table, TableBody, TableCell, 
-  TableHead, TableRow, TableContainer, Divider
+  TableHead, TableRow, TableContainer, Alert 
 } from '@mui/material';
 import { 
-  CloudUpload, Security, Warning, Sensors, StopCircle, RadioButtonChecked,
+  CloudUpload, Security, Sensors, StopCircle, RadioButtonChecked,
   GppGood, ErrorOutline
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
@@ -31,7 +31,7 @@ export default function Dashboard() {
       setIsLiveActive(false);
       toast('Live Sensor Disconnected', { icon: '🛑' });
     } else {
-      setScanSummary({ total_flows_analyzed: 0, threats_detected: 0 });
+      setScanSummary({ total_flows_analyzed: 0, threats_detected: 0, warning: null });
       setThreatDetails([]);
       
       const WS_URL = import.meta.env.VITE_WS_BASE_URL;
@@ -52,6 +52,7 @@ export default function Dashboard() {
         setScanSummary(prev => ({
           total_flows_analyzed: (prev?.total_flows_analyzed || 0) + data.total_flows,
           threats_detected: (prev?.threats_detected || 0) + data.threats_detected,
+          warning: data.warning || prev?.warning // <-- CAPTURES LIVE WARNINGS
         }));
         
         if (data.threat_details && data.threat_details.length > 0) {
@@ -114,12 +115,13 @@ export default function Dashboard() {
             setScanSummary({
                 total_flows_analyzed: mlResults.total_flows,
                 threats_detected: mlResults.threats_detected,
+                warning: mlResults.warning 
             });
             setThreatDetails(mlResults.threat_details || []);
             setIsScanning(false);
 
             if (mlResults.warning) {
-                toast.error(mlResults.warning, { id: toastId, icon: '⚠️', style: { background: '#fff3cd', color: '#856404' }, duration: 6000 });
+                toast.error("Scan Complete with Warnings. See dashboard.", { id: toastId, icon: '⚠️', style: { background: '#fff3cd', color: '#856404' }, duration: 6000 });
             } else if (mlResults.threats_detected > 0) {
                 toast.error(`Analysis Complete: ${mlResults.threats_detected} Threats Detected!`, { id: toastId });
             } else {
@@ -241,6 +243,18 @@ export default function Dashboard() {
       {/*DASHBOARD */}
       {scanSummary && (
         <Box>
+          
+          {/*PERSISTENT WARNING BANNER*/}
+          {scanSummary.warning && (
+            <Alert 
+              severity="warning" 
+              variant="filled" 
+              sx={{ mb: 3, bgcolor: '#856404', color: '#fff3cd', border: '1px solid #ffeeba' }}
+            >
+              <strong>Data Quality Warning:</strong> {scanSummary.warning}
+            </Alert>
+          )}
+
           <Grid container spacing={3} sx={{ mb: 4 }}>
             <Grid item xs={12} sm={6} md={3}>
               <Card sx={{ bgcolor: '#0b1426', border: '1px solid #1e293b', borderTop: `4px solid ${isCritical ? '#ef4444' : '#10b981'}` }}>
