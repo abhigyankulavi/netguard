@@ -76,8 +76,8 @@ Macro Average Recall was given priority during the training process to make sure
 - Check for **data leakage** due to near-perfect scores.
 - Consider **confusion matrix analysis** for deeper insight.
 
-![Confusion Matrix](./docs/Confusion_matrix_netguard.jpg)
-![Top Features](./docs/Top_features_netguard.jpg)
+![Confusion Matrix](./Images/confusion_matrix_netguard_v03.png)
+![Top Features](./Images/top_features_netguard_v03.png)
 
 #### **C. Feature importance and behavioral analysis**
 The approach does not depend on mere volume spikes but rather uses in-depth behavioral analysis of flow data to detect malicious activity. The training data has pointed to a number of key features that drive the logic of detection:
